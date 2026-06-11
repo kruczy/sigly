@@ -1,13 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { greet, name } from "./index.js";
+import * as sigly from "./index.js";
 
-describe("sigly", () => {
-  it("exports the package name", () => {
-    expect(name).toBe("sigly");
-  });
-
-  it("greets a subject", () => {
-    expect(greet("tests")).toBe("Hello, tests from sigly.");
+describe("public exports", () => {
+  it("exports constructors without exposing the registry", () => {
+    expect(sigly).toHaveProperty("value$");
+    expect(sigly).toHaveProperty("computed$");
+    expect(sigly).not.toHaveProperty("registry");
+    expect(sigly).not.toHaveProperty("Registry");
   });
 });

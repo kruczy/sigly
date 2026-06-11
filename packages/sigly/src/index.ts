@@ -1,5 +1,9 @@
-export const name = "sigly";
-
-export function greet(subject = "world"): string {
-  return `Hello, ${subject} from ${name}.`;
-}
+export { computed$ } from "./computed.js";
+export { value$ } from "./value.js";
+export type {
+  ComputedObservable,
+  Observable,
+  Subscriber,
+  Unsubscribe,
+  ValueObservable,
+} from "./types.js";
