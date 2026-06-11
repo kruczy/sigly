@@ -112,6 +112,7 @@ function createComputedNode<T>(
         subscriber(state.value, previousValue);
       }
     },
+    syncSubscription: () => {},
   };
 
   return {

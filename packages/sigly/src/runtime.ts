@@ -12,6 +12,7 @@ export type RuntimeNode = {
   hasSubscribers(): boolean;
   ensureFresh(): void;
   notifySubscribers(): void;
+  syncSubscription(): void;
 };
 
 export type TrackedNodeIds<T> = {
@@ -20,7 +21,7 @@ export type TrackedNodeIds<T> = {
 };
 
 export type ValueNodeContext = {
-  recordDependency(id: NodeId): void;
+  recordDependency(id: NodeId): boolean;
   queueNotification(node: RuntimeNode): void;
   markObserversDirty(id: NodeId): void;
   scheduleFlush(): void;

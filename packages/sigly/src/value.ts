@@ -63,6 +63,7 @@ function createValueNode<T>(
         subscriber(value, previousValue);
       }
     },
+    syncSubscription: () => {},
   };
 
   return {

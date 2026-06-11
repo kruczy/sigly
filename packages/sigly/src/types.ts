@@ -1,4 +1,4 @@
-export type NodeKind = "value" | "computed";
+export type NodeKind = "value" | "computed" | "observable";
 
 export type Subscriber<T> = (value: T, previousValue: T) => void;
 
@@ -16,6 +16,11 @@ export interface ValueObservable<T> extends Observable<T> {
 }
 
 export interface ComputedObservable<T> extends Observable<T> {}
+
+export interface ObservableOptions<T> {
+  get(): T;
+  subscribe(emit: (value: T) => void): Unsubscribe;
+}
 
 export interface Dependency<T = unknown> {
   readonly id: number;

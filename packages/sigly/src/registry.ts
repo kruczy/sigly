@@ -67,25 +67,32 @@ function replaceDependencies(node: RuntimeNode, nextDependencies: readonly NodeI
 
   for (const dependencyId of node.dependencies) {
     if (!next.has(dependencyId)) {
-      requireNode(dependencyId).observers.delete(node.id);
+      const dependency = requireNode(dependencyId);
+      dependency.observers.delete(node.id);
+      dependency.syncSubscription();
     }
   }
 
   for (const dependencyId of next) {
     if (!node.dependencies.has(dependencyId)) {
-      requireNode(dependencyId).observers.add(node.id);
+      const dependency = requireNode(dependencyId);
+      dependency.observers.add(node.id);
+      dependency.syncSubscription();
     }
   }
 
   node.dependencies = next;
 }
 
-function recordDependency(id: NodeId): void {
+function recordDependency(id: NodeId): boolean {
   const currentTracker = trackingStack.at(-1);
 
   if (currentTracker !== undefined) {
     currentTracker.add(id);
+    return true;
   }
+
+  return false;
 }
 
 function markObserversDirty(id: NodeId, visited = new Set<NodeId>()): void {
