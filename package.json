@@ -2,12 +2,20 @@
   "name": "sigly-monorepo",
   "version": "0.0.0",
   "private": true,
-  "packageManager": "pnpm@10.12.1",
   "scripts": {
     "build": "pnpm -r run build",
+    "format": "oxfmt . --write",
+    "format:check": "oxfmt . --check",
+    "lint": "oxlint . --type-aware --vitest-plugin --deny-warnings",
+    "lint:fix": "oxlint . --type-aware --vitest-plugin --fix",
     "test": "pnpm -r run test"
   },
   "devDependencies": {
-    "typescript": "^6.0.3"
-  }
+    "oxfmt": "^0.54.0",
+    "oxlint": "^1.69.0",
+    "oxlint-tsgolint": "^0.23.0",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.8"
+  },
+  "packageManager": "pnpm@10.12.1"
 }
