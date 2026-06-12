@@ -31,6 +31,8 @@ export type ComputedNodeContext = ValueNodeContext & {
   trackNodeIds<T>(callback: () => T): TrackedNodeIds<T>;
   replaceDependencies(node: RuntimeNode, nextDependencies: readonly NodeId[]): void;
   isFlushing(): boolean;
+  isTracking(): boolean;
+  untrack<T>(callback: () => T): T;
 };
 
 export type CreatedNode<TObservable> = {

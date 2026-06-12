@@ -8,7 +8,7 @@ import type {
 } from "./runtime.js";
 
 const nodes = new Map<NodeId, RuntimeNode>();
-const trackingStack: Set<NodeId>[] = [];
+const trackingStack: (Set<NodeId> | undefined)[] = [];
 const pendingNotifications = new Set<NodeId>();
 
 let nextId = 0;
@@ -25,8 +25,10 @@ export const valueNodeContext: ValueNodeContext = {
 export const computedNodeContext: ComputedNodeContext = {
   ...valueNodeContext,
   isFlushing: () => flushing,
+  isTracking,
   replaceDependencies,
   trackNodeIds,
+  untrack,
 };
 
 export function createNodeId(): NodeId {
@@ -60,6 +62,20 @@ function trackNodeIds<T>(callback: () => T): TrackedNodeIds<T> {
   } finally {
     trackingStack.pop();
   }
+}
+
+function untrack<T>(callback: () => T): T {
+  trackingStack.push(undefined);
+
+  try {
+    return callback();
+  } finally {
+    trackingStack.pop();
+  }
+}
+
+function isTracking(): boolean {
+  return trackingStack.at(-1) !== undefined;
 }
 
 function replaceDependencies(node: RuntimeNode, nextDependencies: readonly NodeId[]): void {

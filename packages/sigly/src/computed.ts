@@ -28,6 +28,14 @@ function createComputedNode<T>(
   let computing = false;
   let node: RuntimeNode;
 
+  const readState = (): T => {
+    if (!state.initialized) {
+      throw new Error(`Computed node ${id} did not produce a value.`);
+    }
+
+    return state.value;
+  };
+
   const ensureFresh = (): void => {
     if (state.initialized && !node.dirty) {
       return;
@@ -62,25 +70,51 @@ function createComputedNode<T>(
     }
   };
 
-  const peek = (): T => {
+  const getFreshValue = (): T => {
     ensureFresh();
+    return readState();
+  };
 
-    if (!state.initialized) {
-      throw new Error(`Computed node ${id} did not produce a value.`);
+  const computeUntracked = (): T => {
+    if (computing) {
+      throw new Error(`Cycle detected while computing node ${id}.`);
     }
 
-    return state.value;
+    computing = true;
+
+    try {
+      return context.untrack(compute);
+    } finally {
+      computing = false;
+    }
+  };
+
+  const peek = (): T => {
+    if (context.isTracking()) {
+      if (state.initialized && !node.dirty) {
+        return state.value;
+      }
+
+      return computeUntracked();
+    }
+
+    return getFreshValue();
   };
 
   const observable: ComputedObservable<T> = {
     id,
     get: () => {
-      context.recordDependency(id);
-      return peek();
+      const isTracked = context.recordDependency(id);
+
+      if (!isTracked && subscribers.size === 0 && node.observers.size === 0) {
+        return computeUntracked();
+      }
+
+      return getFreshValue();
     },
     peek,
     subscribe: (subscriber) => {
-      const value = peek();
+      const value = getFreshValue();
       subscribers.set(subscriber, value);
 
       return () => {

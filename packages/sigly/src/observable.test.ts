@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { computed$ } from "./computed.js";
 import { observable$ } from "./observable.js";
+import { track } from "./registry.js";
 import { value$ } from "./value.js";
 
 const nextMicrotask = (): Promise<void> =>
@@ -27,6 +28,124 @@ describe("observable$", () => {
     value = 2;
 
     expect(source.get()).toBe(2);
+    expect(subscribeCalls).toBe(0);
+  });
+
+  it("does not subscribe when peek is read in a tracked context", () => {
+    let getCalls = 0;
+    let subscribeCalls = 0;
+
+    const source = observable$({
+      get: () => {
+        getCalls += 1;
+        return 1;
+      },
+      subscribe: () => {
+        subscribeCalls += 1;
+        return () => {};
+      },
+    });
+
+    const result = track(() => source.peek() + 1);
+
+    expect(result.value).toBe(2);
+    expect(result.dependencies).toEqual([]);
+    expect(getCalls).toBe(1);
+    expect(subscribeCalls).toBe(0);
+  });
+
+  it("does not subscribe to a source peeked by a subscribed computed", () => {
+    let getCalls = 0;
+    let subscribeCalls = 0;
+    let unsubscribeCalls = 0;
+    let runs = 0;
+
+    const source = observable$({
+      get: () => {
+        getCalls += 1;
+        return 1;
+      },
+      subscribe: () => {
+        subscribeCalls += 1;
+
+        return () => {
+          unsubscribeCalls += 1;
+        };
+      },
+    });
+
+    const plusOne = computed$(() => {
+      runs += 1;
+      return source.peek() + 1;
+    });
+
+    const unsubscribe = plusOne.subscribe(() => {});
+
+    expect(runs).toBe(1);
+    expect(getCalls).toBe(1);
+    expect(subscribeCalls).toBe(0);
+
+    unsubscribe();
+
+    expect(unsubscribeCalls).toBe(0);
+  });
+
+  it("does not subscribe when a computed gets the source in an untracked context", () => {
+    let getCalls = 0;
+    let subscribeCalls = 0;
+    let runs = 0;
+
+    const source = observable$({
+      get: () => {
+        getCalls += 1;
+        return 1;
+      },
+      subscribe: () => {
+        subscribeCalls += 1;
+        return () => {};
+      },
+    });
+
+    const plusOne = computed$(() => {
+      runs += 1;
+      return source.get() + 1;
+    });
+
+    const result = plusOne.get();
+
+    expect(result).toBe(2);
+    expect(runs).toBe(1);
+    expect(getCalls).toBe(1);
+    expect(subscribeCalls).toBe(0);
+  });
+
+  it("does not subscribe when a peeked computed gets the source in a tracked context", () => {
+    let getCalls = 0;
+    let subscribeCalls = 0;
+    let runs = 0;
+
+    const source = observable$({
+      get: () => {
+        getCalls += 1;
+        return 1;
+      },
+      subscribe: () => {
+        subscribeCalls += 1;
+        return () => {};
+      },
+    });
+
+    const plusOne = computed$(() => {
+      runs += 1;
+      return source.get() + 1;
+    });
+
+    const result = track(() => plusOne.peek() + 1);
+
+    expect(result.value).toBe(3);
+    expect(result.dependencies).toEqual([]);
+    expect(runs).toBe(1);
+    expect(getCalls).toBe(1);
     expect(subscribeCalls).toBe(0);
   });
 
