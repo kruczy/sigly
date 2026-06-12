@@ -6,7 +6,7 @@ export type RuntimeNode = {
   readonly id: NodeId;
   readonly kind: NodeKind;
   readonly observable: Observable<unknown>;
-  dependencies: Set<NodeId>;
+  dependencies: Map<NodeId, RuntimeNode>;
   observers: Set<NodeId>;
   dirty: boolean;
   hasSubscribers(): boolean;

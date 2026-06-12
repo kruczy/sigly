@@ -127,7 +127,7 @@ function createComputedNode<T>(
     id,
     kind: "computed",
     observable,
-    dependencies: new Set(),
+    dependencies: new Map(),
     observers: new Set(),
     dirty: true,
     hasSubscribers: () => subscribers.size > 0,

@@ -122,7 +122,7 @@ function createObservableNode<T>(
     id,
     kind: "observable",
     observable,
-    dependencies: new Set(),
+    dependencies: new Map(),
     observers: new Set(),
     dirty: false,
     hasSubscribers: () => subscribers.size > 0,
