@@ -19,3 +19,7 @@ pnpm -r run build
 ## Packages
 
 - `sigly` - the main package, located in `packages/sigly`
+
+## License
+
+MIT
