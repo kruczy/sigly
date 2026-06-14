@@ -2,3 +2,5 @@ node_modules/
 dist/
 coverage/
 .vitest/
+apps/playground/public/sigly/
+apps/playground/vite.*.log
