@@ -1,5 +1,5 @@
 import { computedNodeContext, createNodeId, registerNode } from "./registry.js";
-import type { ComputedObservable, Subscriber } from "./types.js";
+import type { ComputedObservable } from "./types.js";
 import type { ComputedNodeContext, CreatedNode, NodeId, RuntimeNode } from "./runtime.js";
 
 type ComputedState<T> =
@@ -23,7 +23,6 @@ function createComputedNode<T>(
   compute: () => T,
   context: ComputedNodeContext,
 ): CreatedNode<ComputedObservable<T>> {
-  const subscribers = new Map<Subscriber<T>, T>();
   let state: ComputedState<T> = { initialized: false };
   let computing = false;
   let node: RuntimeNode;
@@ -106,7 +105,7 @@ function createComputedNode<T>(
     get: () => {
       const isTracked = context.recordDependency(id);
 
-      if (!isTracked && subscribers.size === 0 && node.observers.size === 0) {
+      if (!isTracked && !context.hasSubscribers(node) && node.observers.size === 0) {
         return computeUntracked();
       }
 
@@ -114,12 +113,8 @@ function createComputedNode<T>(
     },
     peek,
     subscribe: (subscriber) => {
-      const value = getFreshValue();
-      subscribers.set(subscriber, value);
-
-      return () => {
-        subscribers.delete(subscriber);
-      };
+      ensureFresh();
+      return context.subscribe(node, subscriber, readState);
     },
   };
 
@@ -130,23 +125,7 @@ function createComputedNode<T>(
     dependencies: new Map(),
     observers: new Set(),
     dirty: true,
-    hasSubscribers: () => subscribers.size > 0,
     ensureFresh,
-    notifySubscribers: () => {
-      if (!state.initialized) {
-        return;
-      }
-
-      for (const [subscriber, previousValue] of Array.from(subscribers.entries())) {
-        if (!subscribers.has(subscriber) || Object.is(previousValue, state.value)) {
-          continue;
-        }
-
-        subscribers.set(subscriber, state.value);
-        subscriber(state.value, previousValue);
-      }
-    },
-    syncSubscription: () => {},
   };
 
   return {

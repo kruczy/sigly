@@ -1,13 +1,26 @@
-import type { Dependency, TrackResult } from "./types.js";
+import type { Dependency, Subscriber, TrackResult, Unsubscribe } from "./types.js";
 import type {
   ComputedNodeContext,
   NodeId,
   RuntimeNode,
+  RuntimeSource,
   TrackedNodeIds,
   ValueNodeContext,
 } from "./runtime.js";
 
+type SourceState = {
+  readonly source: RuntimeSource;
+  active: boolean;
+  unsubscribe: Unsubscribe | undefined;
+};
+
+type NodeState = {
+  readonly subscribers: Map<object, () => void>;
+  readonly source: SourceState | undefined;
+};
+
 const nodes = new Map<NodeId, WeakRef<RuntimeNode>>();
+const nodeStates = new WeakMap<RuntimeNode, NodeState>();
 const trackingStack: (Set<NodeId> | undefined)[] = [];
 const pendingNotifications = new Set<NodeId>();
 
@@ -16,10 +29,14 @@ let flushScheduled = false;
 let flushing = false;
 
 export const valueNodeContext: ValueNodeContext = {
+  activateSource,
+  hasSubscribers,
+  isSourceActive,
   markObserversDirty,
   queueNotification,
   recordDependency,
   scheduleFlush,
+  subscribe,
 };
 
 export const computedNodeContext: ComputedNodeContext = {
@@ -37,8 +54,19 @@ export function createNodeId(): NodeId {
   return id;
 }
 
-export function registerNode(node: RuntimeNode): void {
+export function registerNode(node: RuntimeNode, source?: RuntimeSource): void {
   nodes.set(node.id, new WeakRef(node));
+  nodeStates.set(node, {
+    subscribers: new Map(),
+    source:
+      source === undefined
+        ? undefined
+        : {
+            source,
+            active: false,
+            unsubscribe: undefined,
+          },
+  });
 }
 
 export function track<T>(callback: () => T): TrackResult<T> {
@@ -89,14 +117,14 @@ function replaceDependencies(node: RuntimeNode, nextDependencies: readonly NodeI
   for (const [dependencyId, dependency] of node.dependencies) {
     if (!next.has(dependencyId)) {
       dependency.observers.delete(node.id);
-      dependency.syncSubscription();
+      syncSourceSubscription(dependency);
     }
   }
 
   for (const [dependencyId, dependency] of nextDependencyNodes) {
     if (!node.dependencies.has(dependencyId)) {
       dependency.observers.add(node.id);
-      dependency.syncSubscription();
+      syncSourceSubscription(dependency);
     }
   }
 
@@ -128,7 +156,7 @@ function markObserversDirty(id: NodeId, visited = new Set<NodeId>()): void {
 
     if (observer === undefined) {
       node.observers.delete(observerId);
-      node.syncSubscription();
+      syncSourceSubscription(node);
       continue;
     }
 
@@ -140,9 +168,111 @@ function markObserversDirty(id: NodeId, visited = new Set<NodeId>()): void {
 }
 
 function queueNotification(node: RuntimeNode): void {
-  if (node.hasSubscribers()) {
+  if (hasSubscribers(node)) {
     pendingNotifications.add(node.id);
   }
+}
+
+function subscribe<T>(node: RuntimeNode, subscriber: Subscriber<T>, read: () => T): Unsubscribe {
+  syncSourceSubscription(node, true);
+
+  const id = node.id;
+  const subscribers = requireNodeState(node).subscribers;
+  let previousValue = read();
+
+  subscribers.set(subscriber, () => {
+    const value = read();
+
+    if (Object.is(previousValue, value)) {
+      return;
+    }
+
+    const lastValue = previousValue;
+    previousValue = value;
+    subscriber(value, lastValue);
+  });
+
+  return () => {
+    subscribers.delete(subscriber);
+
+    const liveNode = lookupNode(id);
+
+    if (liveNode !== undefined) {
+      syncSourceSubscription(liveNode);
+    }
+  };
+}
+
+function hasSubscribers(node: RuntimeNode): boolean {
+  return requireNodeState(node).subscribers.size > 0;
+}
+
+function notifySubscribers(node: RuntimeNode): void {
+  const subscribers = requireNodeState(node).subscribers;
+
+  for (const [subscriber, notify] of Array.from(subscribers.entries())) {
+    if (!subscribers.has(subscriber)) {
+      continue;
+    }
+
+    notify();
+  }
+}
+
+function activateSource(node: RuntimeNode): void {
+  syncSourceSubscription(node, true);
+}
+
+function isSourceActive(node: RuntimeNode): boolean {
+  return requireSourceState(node).active;
+}
+
+function syncSourceSubscription(node: RuntimeNode, force = false): void {
+  const state = requireNodeState(node);
+  const source = state.source;
+
+  if (source === undefined) {
+    return;
+  }
+
+  const shouldSubscribe = force || state.subscribers.size > 0 || node.observers.size > 0;
+
+  if (shouldSubscribe) {
+    startSourceSubscription(source);
+    return;
+  }
+
+  stopSourceSubscription(source);
+}
+
+function startSourceSubscription(source: SourceState): void {
+  if (source.active) {
+    return;
+  }
+
+  source.active = true;
+
+  try {
+    source.unsubscribe = source.source.subscribe();
+  } catch (error) {
+    source.active = false;
+    source.unsubscribe = undefined;
+    source.source.reset();
+    throw error;
+  }
+}
+
+function stopSourceSubscription(source: SourceState): void {
+  if (!source.active) {
+    return;
+  }
+
+  const unsubscribe = source.unsubscribe;
+
+  source.active = false;
+  source.unsubscribe = undefined;
+  source.source.reset();
+  unsubscribe?.();
 }
 
 function scheduleFlush(): void {
@@ -167,7 +297,7 @@ function flush(): void {
       recomputed = false;
 
       for (const node of liveNodes()) {
-        if (node.kind === "computed" && node.dirty && node.hasSubscribers()) {
+        if (node.kind === "computed" && node.dirty && hasSubscribers(node)) {
           node.ensureFresh();
           recomputed = true;
         }
@@ -178,7 +308,11 @@ function flush(): void {
     pendingNotifications.clear();
 
     for (const id of queuedNotifications) {
-      lookupNode(id)?.notifySubscribers();
+      const node = lookupNode(id);
+
+      if (node !== undefined) {
+        notifySubscribers(node);
+      }
     }
   } finally {
     flushing = false;
@@ -203,6 +337,26 @@ function requireNode(id: NodeId): RuntimeNode {
   }
 
   return node;
+}
+
+function requireNodeState(node: RuntimeNode): NodeState {
+  const state = nodeStates.get(node);
+
+  if (state === undefined) {
+    throw new RangeError(`Unknown sigly node id: ${node.id}.`);
+  }
+
+  return state;
+}
+
+function requireSourceState(node: RuntimeNode): SourceState {
+  const source = requireNodeState(node).source;
+
+  if (source === undefined) {
+    throw new TypeError(`Sigly node ${node.id} is not a source observable.`);
+  }
+
+  return source;
 }
 
 function lookupNode(id: NodeId): RuntimeNode | undefined {
@@ -261,7 +415,7 @@ function removeObserverLinks(ids: readonly NodeId[], live: readonly RuntimeNode[
     }
 
     if (observersChanged) {
-      node.syncSubscription();
+      syncSourceSubscription(node);
     }
   }
 }

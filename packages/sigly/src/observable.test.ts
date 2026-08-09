@@ -204,6 +204,35 @@ describe("observable$", () => {
     expect(source.peek()).toBe(5);
   });
 
+  it("shares one source subscription until the final direct subscriber unsubscribes", () => {
+    let subscribeCalls = 0;
+    let unsubscribeCalls = 0;
+
+    const source = observable$({
+      get: () => 1,
+      subscribe: () => {
+        subscribeCalls += 1;
+
+        return () => {
+          unsubscribeCalls += 1;
+        };
+      },
+    });
+
+    const unsubscribeFirst = source.subscribe(() => {});
+    const unsubscribeSecond = source.subscribe(() => {});
+
+    expect(subscribeCalls).toBe(1);
+
+    unsubscribeFirst();
+
+    expect(unsubscribeCalls).toBe(0);
+
+    unsubscribeSecond();
+
+    expect(unsubscribeCalls).toBe(1);
+  });
+
   it("returns a synchronous emitted value from a tracked get", () => {
     let getCalls = 0;
     let subscribeCalls = 0;

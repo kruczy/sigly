@@ -1,20 +1,34 @@
 import { createNodeId, registerNode, valueNodeContext } from "./registry.js";
-import type { Observable, ObservableOptions, Subscriber, Unsubscribe } from "./types.js";
-import type { CreatedNode, NodeId, RuntimeNode, ValueNodeContext } from "./runtime.js";
+import type { Observable, ObservableOptions } from "./types.js";
+import type {
+  CreatedNode,
+  NodeId,
+  RuntimeNode,
+  RuntimeSource,
+  ValueNodeContext,
+} from "./runtime.js";
 
 type EmittedState<T> =
   | {
-      readonly kind: "empty";
+      readonly ready: false;
     }
   | {
-      readonly kind: "ready";
+      readonly ready: true;
       readonly value: T;
     };
 
-export function observable$<T>(options: ObservableOptions<T>): Observable<T> {
-  const { observable, node } = createObservableNode(createNodeId(), options, valueNodeContext);
+type CreatedObservableNode<T> = CreatedNode<Observable<T>> & {
+  readonly source: RuntimeSource;
+};
 
-  registerNode(node);
+export function observable$<T>(options: ObservableOptions<T>): Observable<T> {
+  const { observable, node, source } = createObservableNode(
+    createNodeId(),
+    options,
+    valueNodeContext,
+  );
+
+  registerNode(node, source);
   return observable;
 }
 
@@ -22,77 +36,30 @@ function createObservableNode<T>(
   id: NodeId,
   options: ObservableOptions<T>,
   context: ValueNodeContext,
-): CreatedNode<Observable<T>> {
-  const subscribers = new Map<Subscriber<T>, T>();
-  let emittedState: EmittedState<T> = { kind: "empty" };
-  let isSubscribed = false;
-  let sourceUnsubscribe: Unsubscribe | undefined;
+): CreatedObservableNode<T> {
+  let emittedState: EmittedState<T> = { ready: false };
   let node: RuntimeNode;
 
   const emit = (value: T): void => {
-    if (!isSubscribed) {
+    if (
+      !context.isSourceActive(node) ||
+      (emittedState.ready && Object.is(emittedState.value, value))
+    ) {
       return;
     }
 
-    if (emittedState.kind === "ready" && Object.is(emittedState.value, value)) {
-      return;
-    }
-
-    emittedState = {
-      kind: "ready",
-      value,
-    };
+    emittedState = { ready: true, value };
     context.queueNotification(node);
     context.markObserversDirty(id);
     context.scheduleFlush();
   };
 
   const readValue = (): T => {
-    if (isSubscribed && emittedState.kind === "ready") {
+    if (context.isSourceActive(node) && emittedState.ready) {
       return emittedState.value;
     }
 
     return options.get();
-  };
-
-  const startSubscription = (): void => {
-    if (isSubscribed) {
-      return;
-    }
-
-    isSubscribed = true;
-
-    try {
-      sourceUnsubscribe = options.subscribe(emit);
-    } catch (error) {
-      isSubscribed = false;
-      emittedState = { kind: "empty" };
-      throw error;
-    }
-  };
-
-  const stopSubscription = (): void => {
-    if (!isSubscribed) {
-      return;
-    }
-
-    const unsubscribe = sourceUnsubscribe;
-
-    isSubscribed = false;
-    sourceUnsubscribe = undefined;
-    emittedState = { kind: "empty" };
-    unsubscribe?.();
-  };
-
-  const syncSubscription = (forceSubscribe = false): void => {
-    const shouldSubscribe = forceSubscribe || subscribers.size > 0 || node.observers.size > 0;
-
-    if (shouldSubscribe) {
-      startSubscription();
-      return;
-    }
-
-    stopSubscription();
   };
 
   const observable: Observable<T> = {
@@ -101,21 +68,13 @@ function createObservableNode<T>(
       const isTracked = context.recordDependency(id);
 
       if (isTracked) {
-        syncSubscription(true);
+        context.activateSource(node);
       }
 
       return readValue();
     },
-    peek: () => readValue(),
-    subscribe: (subscriber) => {
-      syncSubscription(true);
-      subscribers.set(subscriber, readValue());
-
-      return () => {
-        subscribers.delete(subscriber);
-        syncSubscription();
-      };
-    },
+    peek: readValue,
+    subscribe: (subscriber) => context.subscribe(node, subscriber, readValue),
   };
 
   node = {
@@ -125,25 +84,17 @@ function createObservableNode<T>(
     dependencies: new Map(),
     observers: new Set(),
     dirty: false,
-    hasSubscribers: () => subscribers.size > 0,
     ensureFresh: () => {},
-    notifySubscribers: () => {
-      const value = readValue();
-
-      for (const [subscriber, previousValue] of Array.from(subscribers.entries())) {
-        if (!subscribers.has(subscriber) || Object.is(previousValue, value)) {
-          continue;
-        }
-
-        subscribers.set(subscriber, value);
-        subscriber(value, previousValue);
-      }
-    },
-    syncSubscription,
   };
 
   return {
     observable,
     node,
+    source: {
+      reset: () => {
+        emittedState = { ready: false };
+      },
+      subscribe: () => options.subscribe(emit),
+    },
   };
 }

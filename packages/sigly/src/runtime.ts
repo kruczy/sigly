@@ -1,4 +1,4 @@
-import type { NodeKind, Observable } from "./types.js";
+import type { NodeKind, Observable, Subscriber, Unsubscribe } from "./types.js";
 
 export type NodeId = number;
 
@@ -9,10 +9,12 @@ export type RuntimeNode = {
   dependencies: Map<NodeId, RuntimeNode>;
   observers: Set<NodeId>;
   dirty: boolean;
-  hasSubscribers(): boolean;
   ensureFresh(): void;
-  notifySubscribers(): void;
-  syncSubscription(): void;
+};
+
+export type RuntimeSource = {
+  reset(): void;
+  subscribe(): Unsubscribe;
 };
 
 export type TrackedNodeIds<T> = {
@@ -21,10 +23,14 @@ export type TrackedNodeIds<T> = {
 };
 
 export type ValueNodeContext = {
+  activateSource(node: RuntimeNode): void;
+  hasSubscribers(node: RuntimeNode): boolean;
+  isSourceActive(node: RuntimeNode): boolean;
   recordDependency(id: NodeId): boolean;
   queueNotification(node: RuntimeNode): void;
   markObserversDirty(id: NodeId): void;
   scheduleFlush(): void;
+  subscribe<T>(node: RuntimeNode, subscriber: Subscriber<T>, read: () => T): Unsubscribe;
 };
 
 export type ComputedNodeContext = ValueNodeContext & {
