@@ -1,0 +1,33 @@
+{
+  "name": "sigly-react-query",
+  "version": "0.0.0",
+  "private": false,
+  "license": "MIT",
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "prebuild": "pnpm --filter sigly build",
+    "publish:npm": "pnpm build && npm publish",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "devDependencies": {
+    "@tanstack/query-core": "^5.101.4",
+    "sigly": "workspace:*"
+  },
+  "peerDependencies": {
+    "@tanstack/query-core": "^5.101.4",
+    "sigly": ">=0.0.2"
+  }
+}
