@@ -10,6 +10,9 @@
     "lint": "oxlint . --type-aware --vitest-plugin --deny-warnings",
     "lint:fix": "oxlint . --type-aware --vitest-plugin --fix",
     "playground": "pnpm --filter playground dev",
+    "release:prepare": "node scripts/release.mjs prepare",
+    "release:publish": "node scripts/release.mjs publish",
+    "release:test": "node --test scripts/release.test.mjs",
     "test": "pnpm -r run test"
   },
   "devDependencies": {

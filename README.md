@@ -25,6 +25,36 @@ pnpm playground
 ## Packages
 
 - `sigly` - the main package, located in `packages/sigly`
+- `sigly-react` - React bindings, located in `packages/sigly-react`
+- `sigly-react-query` - TanStack Query bindings, located in `packages/sigly-react-query`
+
+## Releasing
+
+Prepare a patch release from a clean working tree:
+
+```sh
+pnpm release:prepare
+```
+
+The command compares each public package with its latest `<package>@<version>` Git
+tag, selects only changed packages (and packages that have never been released),
+bumps their versions, and writes `.release/plan.json`. Use `minor` or `major` as an
+argument when needed, or add `--dry-run` to preview the plan. Review and commit the
+generated package manifest and release-plan changes.
+
+Build and publish that committed plan later:
+
+```sh
+pnpm release:publish --dry-run
+pnpm release:publish
+```
+
+Packages are built and published serially in dependency order. Existing npm
+versions are skipped so an interrupted release can be resumed. A successful
+publish creates one Git tag per package and immediately pushes it to `origin`.
+If that push fails after npm succeeds, rerun the publish command; it skips the
+existing npm version and retries the tag push. Future preparation runs use those
+tags as independent baselines.
 
 ## Effects
 
