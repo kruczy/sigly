@@ -1,0 +1,54 @@
+{
+  "schema": 1,
+  "sourceHead": "df7c3ae70ea21ec4ea5cb87eae2f7a3e6749c480",
+  "releaseType": "patch",
+  "packages": [
+    {
+      "name": "sigly",
+      "path": "packages/sigly",
+      "from": "0.0.2",
+      "to": "0.0.3",
+      "baseline": "0d92f537e719d739bf090622254ea2ef9bbd4bbb",
+      "tag": "sigly@0.0.3",
+      "changedFiles": [
+        "packages/sigly/package.json",
+        "packages/sigly/src/effect.test.ts",
+        "packages/sigly/src/effect.ts",
+        "packages/sigly/src/index.test.ts",
+        "packages/sigly/src/index.ts"
+      ]
+    },
+    {
+      "name": "sigly-react",
+      "path": "packages/sigly-react",
+      "from": "0.0.0",
+      "to": "0.0.1",
+      "baseline": null,
+      "tag": "sigly-react@0.0.1",
+      "changedFiles": [
+        "packages/sigly-react/package.json",
+        "packages/sigly-react/src/hooks/use-observe.test.ts",
+        "packages/sigly-react/src/hooks/use-observe.ts",
+        "packages/sigly-react/src/hooks/use-value.test.ts",
+        "packages/sigly-react/src/hooks/use-value.ts",
+        "packages/sigly-react/src/index.ts",
+        "packages/sigly-react/tsconfig.json"
+      ]
+    },
+    {
+      "name": "sigly-react-query",
+      "path": "packages/sigly-react-query",
+      "from": "0.0.0",
+      "to": "0.0.1",
+      "baseline": null,
+      "tag": "sigly-react-query@0.0.1",
+      "changedFiles": [
+        "packages/sigly-react-query/package.json",
+        "packages/sigly-react-query/src/index.ts",
+        "packages/sigly-react-query/src/query.test.ts",
+        "packages/sigly-react-query/src/query.ts",
+        "packages/sigly-react-query/tsconfig.json"
+      ]
+    }
+  ]
+}
