@@ -1,4 +1,5 @@
 export { computed$ } from "./computed.js";
+export { effect } from "./effect.js";
 export { observable$ } from "./observable.js";
 export { value$ } from "./value.js";
 export type {
